@@ -31,263 +31,32 @@ nb_path: "nbs/01_sparsify.ipynb"
 
 <div class="cell border-box-sizing text_cell rendered"><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p><img src="/fasterai_t/imgs/pruning.svg" alt="image.png"></p>
+<p>Neural Network compression can come in many ways. One of the most common is to introduce sparsity in the network, i.e. replace some of its weights by zeroes. This process of making the network sparse is often called <strong>pruning</strong>.</p>
+<p>Pruning thus has for goal to remove some connections in the network that are considered to be useless.</p>
 
 </div>
 </div>
 </div>
-    {% raw %}
-    
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">Sparsifier</span><span class="p">():</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">granularity</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">criteria</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">granularity</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">criteria</span><span class="p">,</span> <span class="n">model</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_save_weights</span><span class="p">()</span> <span class="c1"># Save the original weights</span>
-        
-    <span class="k">def</span> <span class="nf">prune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">):</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span> <span class="o">==</span> <span class="s1">&#39;l1&#39;</span><span class="p">:</span>
-                    <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_l1_norm</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span> <span class="o">==</span> <span class="s1">&#39;grad&#39;</span><span class="p">:</span>
-                    <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grad_crit</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span> <span class="o">==</span> <span class="s1">&#39;movement&#39;</span><span class="p">:</span>
-                    <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_movement</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span><span class="s1">&#39;Invalid Criteria&#39;</span><span class="p">)</span>
-                
-                <span class="n">mask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_mask</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">weight</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">)</span>
-                <span class="n">mask</span> <span class="o">=</span> <span class="n">make_broadcastable</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span> <span class="c1"># Reshape the mask to be broadcastable with the weights</span>
-                <span class="n">m</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;_mask&quot;</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span> <span class="c1"># Put the mask into a buffer</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> 
-    
-    <span class="k">def</span> <span class="nf">_apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">):</span>
-        <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        Apply the mask and freeze the gradient so the corresponding weights are not updated anymore</span>
-<span class="sd">        &#39;&#39;&#39;</span>
-        <span class="n">mask</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;_mask&quot;</span><span class="p">)</span>
-        <span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span> <span class="c1"># In case some layers are freezed</span>
-            <span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
-    
-    <span class="k">def</span> <span class="nf">_l1_norm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight</span><span class="p">):</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;weight&#39;</span><span class="p">:</span>
-            <span class="n">w</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;vector&#39;</span><span class="p">:</span>
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="c1"># Normalize the norm to be consistent for different dimensions</span>
-
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;kernel&#39;</span><span class="p">:</span>
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> 
-        
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;filter&#39;</span><span class="p">:</span>       
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
-
-        <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span><span class="s1">&#39;Invalid Granularity&#39;</span><span class="p">)</span> 
-        
-        <span class="k">return</span> <span class="n">w</span>
-        
-    <span class="k">def</span> <span class="nf">_grad_crit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">weight</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;weight&#39;</span><span class="p">:</span>
-                <span class="n">w</span> <span class="o">=</span> <span class="p">(</span><span class="n">weight</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span><span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-
-            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;vector&#39;</span><span class="p">:</span>
-                <span class="n">w</span> <span class="o">=</span> <span class="p">(</span><span class="n">weight</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span><span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span><span class="o">/</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
-
-            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;kernel&#39;</span><span class="p">:</span>
-                <span class="n">w</span> <span class="o">=</span> <span class="p">(</span><span class="n">weight</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span><span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span><span class="o">/</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>    
-                
-            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;filter&#39;</span><span class="p">:</span>       
-                <span class="n">w</span> <span class="o">=</span> <span class="p">(</span><span class="n">weight</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span><span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">weight</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
-
-            <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span><span class="s1">&#39;Invalid Granularity&#39;</span><span class="p">)</span> 
-
-            <span class="k">return</span> <span class="n">w</span>
-        
-    <span class="k">def</span> <span class="nf">_movement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s1">&#39;_old_weights&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="kc">False</span><span class="p">:</span>
-            <span class="n">module</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;_old_weights&quot;</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="n">_init_weights</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span> <span class="c1"># If the previous value of weights is not known, take the initial value</span>
-            
-        <span class="n">old_weights</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;_init_weights&quot;</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;weight&#39;</span><span class="p">:</span> 
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">((</span><span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">old_weights</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;vector&#39;</span><span class="p">:</span> 
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">old_weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()))</span>
-
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;kernel&#39;</span><span class="p">:</span> 
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">old_weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()))</span>           
-        
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span> <span class="o">==</span> <span class="s1">&#39;filter&#39;</span><span class="p">:</span> 
-            <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">old_weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()))</span>
-
-        <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span><span class="s1">&#39;Invalid Granularity&#39;</span><span class="p">)</span>
-
-        <span class="n">module</span><span class="o">.</span><span class="n">_old_weights</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="c1"># The current value becomes the old one for the next iteration</span>
-            
-        <span class="k">return</span> <span class="n">w</span>
-    
-    <span class="k">def</span> <span class="nf">_reset_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">):</span>
-                <span class="n">init_weights</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s2">&quot;_init_weights&quot;</span><span class="p">)</span>
-                <span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">init_weights</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">):</span>
-                <span class="n">init_weights</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s2">&quot;_init_weights&quot;</span><span class="p">)</span>
-                <span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">init_weights</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="c1"># Reset the weights and apply the current mask</span>
-                
-    <span class="k">def</span> <span class="nf">_save_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">):</span>
-                <span class="n">m</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;_init_weights&quot;</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-                    
-    
-    <span class="k">def</span> <span class="nf">_compute_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">weight</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">):</span>
-        <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        Compute the binary masks</span>
-<span class="sd">        &#39;&#39;&#39;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;global&#39;</span><span class="p">:</span>
-            <span class="n">global_weight</span> <span class="o">=</span> <span class="p">[]</span>
-            
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">()):</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">):</span>
-                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span> <span class="o">==</span> <span class="s1">&#39;l1&#39;</span><span class="p">:</span>
-                        <span class="n">w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_l1_norm</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-                    <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span> <span class="o">==</span> <span class="s1">&#39;grad&#39;</span><span class="p">:</span>
-                        <span class="n">w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grad_crit</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-                        
-                    <span class="n">global_weight</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
-
-            <span class="n">global_weight</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">global_weight</span><span class="p">)</span>
-            <span class="n">threshold</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">global_weight</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span> <span class="c1"># Compute the threshold globally</span>
-            
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;local&#39;</span><span class="p">:</span> 
-            <span class="n">threshold</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">sparsity</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span> <span class="c1"># Compute the threshold locally</span>
-            
-        <span class="k">else</span><span class="p">:</span> <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span><span class="s1">&#39;Invalid Method&#39;</span><span class="p">)</span>
-            
-        <span class="c1"># Make sure we don&#39;t remove every weight of a given layer</span>
-        <span class="k">if</span> <span class="n">threshold</span> <span class="o">&gt;</span> <span class="n">weight</span><span class="o">.</span><span class="n">max</span><span class="p">():</span> <span class="n">threshold</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
-
-        <span class="n">mask</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">ge</span><span class="p">(</span><span class="n">threshold</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">weight</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">mask</span>
-</pre></div>
-
-    </div>
-</div>
-</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>{% include image.html max-width="800" file="/fasterai_t/imgs/pruning.svg" %}</p>
 
 </div>
-    {% endraw %}
-
-    {% raw %}
-    
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">make_broadcastable</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
-    <span class="n">target_shape</span> <span class="o">=</span> <span class="n">target</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">output_shape</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">target</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
-    
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">target_shape</span><span class="p">)):</span>
-        <span class="n">input_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-        <span class="n">target_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">target_shape</span><span class="p">[:</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]))</span>
-        <span class="k">if</span> <span class="n">input_size</span> <span class="o">&gt;=</span> <span class="n">target_size</span><span class="p">:</span>
-            <span class="n">output_shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">=</span><span class="n">target_shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">output_shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">=</span><span class="mi">1</span>
-        
-    <span class="n">new_input</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">output_shape</span><span class="p">)</span>        
-    <span class="k">return</span> <span class="n">new_input</span>
-</pre></div>
-
-    </div>
 </div>
 </div>
+<div class="cell border-box-sizing text_cell rendered"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>To prune a network with fasterai, we need to know some important things:</p>
+<ul>
+<li>The granularity</li>
+<li>The method</li>
+<li>The criteria</li>
+<li>The schedule</li>
+</ul>
 
 </div>
-    {% endraw %}
-
-    {% raw %}
-    
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="k">class</span> <span class="nc">SparsifyCallback</span><span class="p">(</span><span class="n">LearnerCallback</span><span class="p">):</span>
-    <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">    sparsity: The percentage of sparsity you want in your final model (between 0 and 100)</span>
-<span class="sd">    granularity: The granularity the pruning will be operating on (&#39;weights&#39;, &#39;vector&#39;, &#39;kernel&#39;, &#39;filters&#39;)</span>
-<span class="sd">    method: The method of selection of the parameters (&#39;local&#39; or &#39;global&#39;)</span>
-<span class="sd">    criteria: The criteria of selection (&#39;l1&#39;, &#39;grad&#39;, &#39;movement&#39;)</span>
-<span class="sd">    sched_func: The scheduling function for the pruning (&#39;one_shot&#39;, &#39;iterative&#39;, &#39;annealing_cos&#39;, &#39;gradual&#39;, ...)</span>
-<span class="sd">    start_epoch: The epoch you want to start pruning the network</span>
-<span class="sd">    start_reset: When doing Lottery Ticket Hypothesis, the epoch you want to start resetting weights to their original values (set to 0 if you don&#39;t want to reset the weights)</span>
-<span class="sd">    rewind: When doing Lottery Ticket Hypothesis with Rewind, the epoch you want to reset you weights to.</span>
-<span class="sd">    reset_end: If you want to reset your weights at the end of training to get your winning ticket.</span>
-<span class="sd">    &#39;&#39;&#39;</span>
-        
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">learn</span><span class="p">:</span><span class="n">Learner</span><span class="p">,</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">granularity</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">criteria</span><span class="p">,</span> <span class="n">sched_func</span><span class="p">,</span> <span class="n">start_epoch</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lth_reset</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">rewind_epoch</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">reset_end</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">learn</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sparsity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sched_func</span> <span class="o">=</span> <span class="n">sparsity</span><span class="p">,</span> <span class="n">granularity</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">criteria</span><span class="p">,</span> <span class="n">sched_func</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">reset_end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewind_epoch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_epoch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lth_reset</span> <span class="o">=</span> <span class="n">reset_end</span><span class="p">,</span> <span class="n">rewind_epoch</span><span class="p">,</span> <span class="n">start_epoch</span><span class="p">,</span> <span class="n">lth_reset</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sparsifier</span> <span class="o">=</span> <span class="n">Sparsifier</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">learn</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">granularity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">criteria</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">batches</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">learn</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">train_ds</span><span class="p">)</span><span class="o">/</span><span class="n">learn</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">train_dl</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">previous_sparsity</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span><span class="mi">0</span>
-
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_epoch</span><span class="o">&gt;</span><span class="bp">self</span><span class="o">.</span><span class="n">rewind_epoch</span><span class="p">,</span> <span class="s1">&#39;You must rewind to an epoch before the start of the pruning process&#39;</span>
-    
-    <span class="k">def</span> <span class="nf">on_train_begin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_epochs</span><span class="p">:</span><span class="nb">int</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Pruning of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">granularity</span><span class="si">}</span><span class="s1"> until a sparsity of </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">sparsity</span><span class="si">}</span><span class="s1">%&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">total_iters</span> <span class="o">=</span> <span class="n">n_epochs</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">batches</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">start_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_epoch</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">batches</span>
-        
-    <span class="k">def</span> <span class="nf">on_epoch_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">epoch</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Sparsity at the end of epoch </span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">%&#39;</span><span class="p">)</span>
-    
-    <span class="k">def</span> <span class="nf">on_epoch_begin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">epoch</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">epoch</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewind_epoch</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Saving Weights at epoch </span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">sparsifier</span><span class="o">.</span><span class="n">_save_weights</span><span class="p">()</span>
-        
-    <span class="k">def</span> <span class="nf">on_batch_begin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">epoch</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">epoch</span><span class="o">&gt;=</span><span class="bp">self</span><span class="o">.</span><span class="n">start_epoch</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">set_sparsity</span><span class="p">(</span><span class="n">iteration</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">sparsifier</span><span class="o">.</span><span class="n">prune</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lth_reset</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span><span class="o">!=</span><span class="bp">self</span><span class="o">.</span><span class="n">previous_sparsity</span><span class="p">:</span> <span class="c1"># If sparsity has changed, the network has been pruned</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Resetting Weights to their epoch </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rewind_epoch</span><span class="si">}</span><span class="s1"> values&#39;</span><span class="p">)</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">sparsifier</span><span class="o">.</span><span class="n">_reset_weights</span><span class="p">()</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">previous_sparsity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span>
-        
-    <span class="k">def</span> <span class="nf">set_sparsity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iteration</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sched_func</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sparsity</span><span class="p">,</span> <span class="n">pct</span><span class="o">=</span><span class="p">(</span><span class="n">iteration</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">start_iter</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_iters</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">start_iter</span><span class="p">))</span>
-    
-    <span class="k">def</span> <span class="nf">on_train_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Final Sparsity: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">current_sparsity</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_end</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">sparsifier</span><span class="o">.</span><span class="n">_reset_weights</span><span class="p">()</span>
-</pre></div>
-
-    </div>
 </div>
 </div>
-
-</div>
-    {% endraw %}
-
 </div>
  
 

@@ -1,8 +1,16 @@
-# Project name here
-> Summary description here.
+# Fasterai
+> Create smaller and faster networks with fastai
 
 
-This file will become your README and also the index of your documentation.
+Fasterai is a library built to be used with fastai, implementing recent research on neural network compression
+
+Neural Network compression can come in many ways:
+- Pruning
+- Knowledge Distillation
+- Quantization
+- Low-Rank Approximation
+- Batch Normalization Folding
+- ...
 
 ## Install
 
@@ -10,15 +18,8 @@ This file will become your README and also the index of your documentation.
 
 ## How to use
 
-Fill me in please! Don't forget code examples:
+### Pruning
 
-```python
-1+1
-```
+### Batch Normalization Folding
 
-
-
-
-    2
-
-
+### Knowledge Distillation

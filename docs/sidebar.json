@@ -1,7 +1,6 @@
 {
   "fasterai_t": {
     "Overview": "/",
-    "module name here": "core.html",
     "Make the network sparse ! ": "sparsify.html"
   }
 }
