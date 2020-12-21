@@ -9,20 +9,20 @@ h3 {color: #000000; }
 h4 {color: #000000; }
 
 .nav-tabs > li.active > a, .nav-tabs > li.active > a:hover, .nav-tabs > li.active > a:focus {
-    background-color: #1c1e1f;
+    background-color: #248ec2;
     color: white;
 }
 
 .nav > li.active > a {
-    background-color: #1c1e1f;
+    background-color: #347DBE;
 }
 
 .nav > li > a:hover {
-    background-color: #1c1e1f;
+    background-color: #248ec2;
 }
 
 div.navbar-collapse .dropdown-menu > li > a:hover {
-    background-color: #1c1e1f;
+    background-color: #347DBE;
 }
 
 .nav li.thirdlevel > a {
@@ -38,8 +38,8 @@ a[data-toggle="tooltip"] {
 }
 
 .navbar-inverse {
-    background-color: #1c1e1f;
-    border-color: #1c1e1f;
+    background-color: #347DBE;
+    border-color: #015CAE;
 }
 .navbar-inverse .navbar-nav>li>a, .navbar-inverse .navbar-brand {
     color: white;
@@ -54,26 +54,26 @@ a.navbar-brand:hover {
 }
 
 .navbar-inverse .navbar-nav > .open > a, .navbar-inverse .navbar-nav > .open > a:hover, .navbar-inverse .navbar-nav > .open > a:focus {
-    color: #1c1e1f;
+    color: #015CAE;
 }
 
 .navbar-inverse .navbar-nav > .open > a, .navbar-inverse .navbar-nav > .open > a:hover, .navbar-inverse .navbar-nav > .open > a:focus {
-    background-color: #1c1e1f;
+    background-color: #015CAE;
     color: #ffffff;
 }
 
 .navbar-inverse .navbar-collapse, .navbar-inverse .navbar-form {
-    border-color: #1c1e1f !important;
+    border-color: #248ec2 !important;
 }
 
 .btn-primary {
     color: #ffffff;
-    background-color: #1c1e1f;
-    border-color: #1c1e1f;
+    background-color: #347DBE;
+    border-color: #347DBE;
 }
 
 .navbar-inverse .navbar-nav > .active > a, .navbar-inverse .navbar-nav > .active > a:hover, .navbar-inverse .navbar-nav > .active > a:focus {
-    background-color: #1c1e1f;
+    background-color: #347DBE;
 }
 
 .btn-primary:hover,
@@ -81,8 +81,8 @@ a.navbar-brand:hover {
 .btn-primary:active,
 .btn-primary.active,
 .open .dropdown-toggle.btn-primary {
-    background-color: #1c1e1f;
-    border-color: #1c1e1f;
+    background-color: #248ec2;
+    border-color: #347DBE;
 }
 
 .printTitle {
@@ -99,7 +99,7 @@ body.print h4 {color: #679DCE !important; font-size:14px; font-style: italic !im
 }
 
 div.sidebarTitle {
-    color: #1c1e1f;
+    color: #015CAE;
 }
 
 li.sidebarTitle {
@@ -113,9 +113,9 @@ li.sidebarTitle {
 }
 
 .navbar-inverse .navbar-toggle:focus, .navbar-inverse .navbar-toggle:hover {
-    background-color: #1c1e1f;
+    background-color: #015CAE;
 }
 
 .navbar-inverse .navbar-toggle {
-    border-color: #1c1e1f;
+    border-color: #015CAE;
 }
